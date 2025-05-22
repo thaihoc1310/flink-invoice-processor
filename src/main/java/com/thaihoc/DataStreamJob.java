@@ -41,9 +41,9 @@ public class DataStreamJob {
         KafkaSource<String> retry3Source = createKafkaSource(params, ConfigKeys.KAFKA_TOPIC_RETRY_3, ConfigKeys.KAFKA_GROUP_ID_RETRY_3);
 
         DataStream<String> primaryJsonStream = env.fromSource(primarySource, WatermarkStrategy.noWatermarks(), "Kafka Primary Source");
-        DataStream<String> retry1JsonStream = env.fromSource(retry1Source, WatermarkStrategy.noWatermarks(), "Kafka Retry 1 Source");
-        DataStream<String> retry2JsonStream = env.fromSource(retry2Source, WatermarkStrategy.noWatermarks(), "Kafka Retry 2 Source");
-        DataStream<String> retry3JsonStream = env.fromSource(retry3Source, WatermarkStrategy.noWatermarks(), "Kafka Retry 3 Source");
+        DataStream<String> retry1JsonStream = env.fromSource(retry1Source, WatermarkStrategy.noWatermarks(), "Kafka Retry 1 Source").setParallelism(defaultJobParallelism/2);
+        DataStream<String> retry2JsonStream = env.fromSource(retry2Source, WatermarkStrategy.noWatermarks(), "Kafka Retry 2 Source").setParallelism(defaultJobParallelism/2);
+        DataStream<String> retry3JsonStream = env.fromSource(retry3Source, WatermarkStrategy.noWatermarks(), "Kafka Retry 3 Source").setParallelism(defaultJobParallelism/2);
 
 
         KafkaSink<String> retry1Sink = createKafkaSink(params, ConfigKeys.KAFKA_TOPIC_RETRY_1);
@@ -57,29 +57,29 @@ public class DataStreamJob {
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedPrimary = primaryJsonStream
                 .process(new InvoiceProcessingRouter(0, maxGroupIdValue, retry1OutputTag, retry2OutputTag, retry3OutputTag, dlqOutputTag))
                 .name("ProcessPrimaryInvoices")
-                .setParallelism(defaultJobParallelism*2);;
-        processedPrimary.getSideOutput(retry1OutputTag).sinkTo(retry1Sink).name("SinkToRetry1");
+                .setParallelism(defaultJobParallelism*2);
+        processedPrimary.getSideOutput(retry1OutputTag).sinkTo(retry1Sink).name("SinkToRetry1").setParallelism(defaultJobParallelism/2);
 
         // Process retry topic 1 stream
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedRetry1 = retry1JsonStream
                 .process(new InvoiceProcessingRouter(1, maxGroupIdValue, retry1OutputTag, retry2OutputTag, retry3OutputTag, dlqOutputTag))
                 .name("ProcessRetry1Invoices")
                 .setParallelism(defaultJobParallelism/2);
-        processedRetry1.getSideOutput(retry2OutputTag).sinkTo(retry2Sink).name("SinkToRetry2");
+        processedRetry1.getSideOutput(retry2OutputTag).sinkTo(retry2Sink).name("SinkToRetry2").setParallelism(defaultJobParallelism/2);
 
         // Process retry topic 2 stream
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedRetry2 = retry2JsonStream
                 .process(new InvoiceProcessingRouter(2, maxGroupIdValue, retry1OutputTag, retry2OutputTag, retry3OutputTag, dlqOutputTag))
                 .name("ProcessRetry2Invoices")
                 .setParallelism(defaultJobParallelism/2);
-        processedRetry2.getSideOutput(retry3OutputTag).sinkTo(retry3Sink).name("SinkToRetry3");
+        processedRetry2.getSideOutput(retry3OutputTag).sinkTo(retry3Sink).name("SinkToRetry3").setParallelism(defaultJobParallelism/2);
 
         // Process retry topic 3 stream (final app-level retry)
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedRetry3 = retry3JsonStream
                 .process(new InvoiceProcessingRouter(3, maxGroupIdValue, retry1OutputTag, retry2OutputTag, retry3OutputTag, dlqOutputTag))
                 .name("ProcessRetry3Invoices")
                 .setParallelism(defaultJobParallelism/2);
-        processedRetry3.getSideOutput(dlqOutputTag).sinkTo(dlqSink).name("SinkToDLQ");
+        processedRetry3.getSideOutput(dlqOutputTag).sinkTo(dlqSink).name("SinkToDLQ").setParallelism(defaultJobParallelism/2);
 
         DataStream<InvoiceMysqlRecord> allSuccessfulRecords = processedPrimary
                 .union(processedRetry1)

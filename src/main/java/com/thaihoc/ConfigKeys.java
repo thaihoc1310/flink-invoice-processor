@@ -5,13 +5,13 @@ public final class ConfigKeys {
     static final String DEFAULT_CONFIG_FILE_CLASSPATH = "application.properties";
 
     static final String KAFKA_BOOTSTRAP_SERVERS = "kafka.bootstrap.servers";
-    static final String KAFKA_TOPIC_PRIMARY = "kafka.topic.primary";
+    static final String KAFKA_TOPIC_PRIMARY = "kafka.topic.crt.request";
     static final String KAFKA_TOPIC_RETRY_1 = "kafka.topic.retry.1";
     static final String KAFKA_TOPIC_RETRY_2 = "kafka.topic.retry.2";
     static final String KAFKA_TOPIC_RETRY_3 = "kafka.topic.retry.3";
     static final String KAFKA_TOPIC_DLQ = "kafka.topic.dlq";
 
-    static final String KAFKA_GROUP_ID_PRIMARY = "kafka.group.id.primary";
+    static final String KAFKA_GROUP_ID_PRIMARY = "kafka.group.id.crt.request";
     static final String KAFKA_GROUP_ID_RETRY_1 = "kafka.group.id.retry.1";
     static final String KAFKA_GROUP_ID_RETRY_2 = "kafka.group.id.retry.2";
     static final String KAFKA_GROUP_ID_RETRY_3 = "kafka.group.id.retry.3";

@@ -7,31 +7,33 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.Collector;
 
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
-public class InvoiceTransformer extends RichFlatMapFunction<String, InvoiceMysqlRecord> {
-    private transient ObjectMapper objectMapper;
+public class InvoiceTransformer{
+    private final transient ObjectMapper objectMapper;
     private final int maxGroupIdValue;
+
     public InvoiceTransformer(int maxGroupIdValue) {
         this.maxGroupIdValue = maxGroupIdValue;
-    }
-    @Override
-    public void open(Configuration parameters) throws Exception {
-        objectMapper = new ObjectMapper();
+        this.objectMapper = new ObjectMapper();
     }
 
-    @Override
-    public void flatMap(String jsonString, Collector<InvoiceMysqlRecord> out) throws Exception {
-        try {
-            JsonNode rootNode = objectMapper.readTree(jsonString);
-            JsonNode invoicesBatchNode = rootNode.path("inv_pack");
+    public List<InvoiceMysqlRecord> transform(String jsonString) throws Exception {
+        List<InvoiceMysqlRecord> records = new ArrayList<>();
+        JsonNode rootNode = objectMapper.readTree(jsonString); // Can throw JsonProcessingException
+        JsonNode invoicesBatchNode = rootNode.path("inv_pack");
 
             if (invoicesBatchNode.isArray()) {
                 for (int i = 0;i < invoicesBatchNode.size();i++) {
                     JsonNode singleInvoiceJson = invoicesBatchNode.path(i);
                     InvoiceMysqlRecord record = new InvoiceMysqlRecord();
                     JsonNode invNode = singleInvoiceJson.path("inv");
-
+                    if (invNode.isMissingNode() || invNode.path("sid").isMissingNode()){
+                        // Example of a business validation that might cause an exception
+                        throw new IllegalArgumentException("Missing 'inv' or 'inv.sid' in invoice item: " + singleInvoiceJson);
+                    }
                     record.inv = objectMapper.writeValueAsString(singleInvoiceJson);
                     record.api_type = (byte) singleInvoiceJson.path("api_type").asInt();
                     record.tax_schema = "0306182043";
@@ -51,11 +53,9 @@ public class InvoiceTransformer extends RichFlatMapFunction<String, InvoiceMysql
                     record.sid = invNode.path("sid").asText();
                     record.syncid = UUID.randomUUID().toString();
 
-                    out.collect(record);
+                    records.add(record);
                 }
             }
-        } catch (Exception e) {
-            System.err.println("json: " + jsonString + " - err: " + e.getMessage());
-        }
+        return records;
     }
 }

@@ -1,5 +1,6 @@
-package com.thaihoc;
+package com.thaihoc.process;
 
+import com.thaihoc.model.InvoiceMysqlRecord;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
@@ -39,6 +40,7 @@ public class InvoiceProcessingRouter extends ProcessFunction<String, InvoiceMysq
         try {
             List<InvoiceMysqlRecord> records = transformer.transform(jsonString);
             for (InvoiceMysqlRecord record : records) {
+                record.retry = (byte) this.currentRetryAttempt;
                 out.collect(record);
             }
         } catch (Exception e) {

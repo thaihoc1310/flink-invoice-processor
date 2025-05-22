@@ -1,4 +1,4 @@
-package com.thaihoc;
+package com.thaihoc.model;
 import java.sql.Timestamp;
 
 public class InvoiceMysqlRecord {

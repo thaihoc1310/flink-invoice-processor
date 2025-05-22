@@ -1,10 +1,8 @@
-package com.thaihoc;
+package com.thaihoc.process;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.flink.api.common.functions.RichFlatMapFunction;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.util.Collector;
+import com.thaihoc.model.InvoiceMysqlRecord;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -40,7 +38,6 @@ public class InvoiceTransformer{
                     record.fpt_einvoice_res_code = null;
                     record.fpt_einvoice_res_msg = null;
                     record.fpt_einvoice_res_json = null;
-                    record.retry = 0;
                     record.state = 1;
                     record.group_id = (byte) (i % maxGroupIdValue);
                     record.created_date = new Timestamp(System.currentTimeMillis());

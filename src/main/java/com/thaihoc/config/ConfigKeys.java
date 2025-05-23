@@ -37,6 +37,7 @@ public final class ConfigKeys {
     static public final String MYSQL_BATCH_SIZE = "mysql.batch.size";
     static public final String MYSQL_BATCH_INTERVAL_MS = "mysql.batch.interval.ms";
     static public final String MYSQL_MAX_RETRIES = "mysql.max.retries";
+    static public final String MYSQL_SINK_PARALLELISM = "mysql.sink.parallelism";
 
     static public final String APP_GROUP_ID_MAX_VALUE = "group.id.max.value";
 

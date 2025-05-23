@@ -35,7 +35,7 @@ public class InvoiceRequest {
         ParameterTool params = loadParameters(args);
 
         final int defaultJobParallelism = params.getInt(ConfigKeys.FLINK_JOB_PARALLELISM, 1);
-        final int primaryProcessorParallelism = defaultJobParallelism * 2;
+//        final int primaryProcessorParallelism = defaultJobParallelism * 2;
         final int retryAndDlqSinkParallelism = Math.max(1, defaultJobParallelism / 2);
         env.setParallelism(defaultJobParallelism);
 
@@ -72,34 +72,32 @@ public class InvoiceRequest {
         // Process primary topic stream
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedCrtRequest = crtRequestJsonStream
                 .process(new InvoiceProcessingRouter(0, maxGroupIdValue, retry1OutputTag, retry2OutputTag, retry3OutputTag, dlqOutputTag))
-                .name("ProcessCrtRequestInvoices")
-                .setParallelism(primaryProcessorParallelism);
-        processedCrtRequest.getSideOutput(retry1OutputTag).sinkTo(retry1Sink).name("SinkToRetry1").setParallelism(retryAndDlqSinkParallelism);
+                .name("ProcessCrtRequestInvoices");
 
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedUpdRequest = updRequestJsonStream
                 .process(new InvoiceProcessingRouter(0, maxGroupIdValue, retry1OutputTag, retry2OutputTag, retry3OutputTag, dlqOutputTag))
-                .name("ProcessUpdRequestInvoices")
-                .setParallelism(primaryProcessorParallelism);
-        processedUpdRequest.getSideOutput(retry1OutputTag).sinkTo(retry1Sink).name("SinkToRetry1").setParallelism(retryAndDlqSinkParallelism);
+                .name("ProcessUpdRequestInvoices");
 
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedDelRequest = delRequestJsonStream
                 .process(new InvoiceProcessingRouter(0, maxGroupIdValue, retry1OutputTag, retry2OutputTag, retry3OutputTag, dlqOutputTag))
-                .name("ProcessDelRequestInvoices")
-                .setParallelism(primaryProcessorParallelism);
-        processedDelRequest.getSideOutput(retry1OutputTag).sinkTo(retry1Sink).name("SinkToRetry1").setParallelism(retryAndDlqSinkParallelism);
+                .name("ProcessDelRequestInvoices");
 
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedRepRequest = repRequestJsonStream
                 .process(new InvoiceProcessingRouter(0, maxGroupIdValue, retry1OutputTag, retry2OutputTag, retry3OutputTag, dlqOutputTag))
-                .name("ProcessRepRequestInvoices")
-                .setParallelism(primaryProcessorParallelism);
-        processedRepRequest.getSideOutput(retry1OutputTag).sinkTo(retry1Sink).name("SinkToRetry1").setParallelism(retryAndDlqSinkParallelism);
+                .name("ProcessRepRequestInvoices");
 
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedAdjRequest = adjRequestJsonStream
                 .process(new InvoiceProcessingRouter(0, maxGroupIdValue, retry1OutputTag, retry2OutputTag, retry3OutputTag, dlqOutputTag))
-                .name("ProcessAdjRequestInvoices")
-                .setParallelism(primaryProcessorParallelism);
-        processedAdjRequest.getSideOutput(retry1OutputTag).sinkTo(retry1Sink).name("SinkToRetry1").setParallelism(retryAndDlqSinkParallelism);
+                .name("ProcessAdjRequestInvoices");
         
+        // Union all retry1 side outputs from primary processing and sink them
+        DataStream<String> allPrimaryRetry1Outputs = processedCrtRequest.getSideOutput(retry1OutputTag)
+                .union(processedUpdRequest.getSideOutput(retry1OutputTag))
+                .union(processedDelRequest.getSideOutput(retry1OutputTag))
+                .union(processedRepRequest.getSideOutput(retry1OutputTag))
+                .union(processedAdjRequest.getSideOutput(retry1OutputTag));
+        
+        allPrimaryRetry1Outputs.sinkTo(retry1Sink).name("SinkAllPrimaryToRetry1");
 
         // Process retry topic 1 stream
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedRetry1 = retry1JsonStream
@@ -136,8 +134,8 @@ public class InvoiceRequest {
         final String dbPassword = params.getRequired(ConfigKeys.MYSQL_PASSWORD);
         final String tableName = params.getRequired(ConfigKeys.MYSQL_TABLE_NAME);
 
-        final int batchSize = params.getInt(ConfigKeys.MYSQL_BATCH_SIZE, 100);
-        final long batchIntervalMs = params.getLong(ConfigKeys.MYSQL_BATCH_INTERVAL_MS, 2000L);
+        final int batchSize = params.getInt(ConfigKeys.MYSQL_BATCH_SIZE, 1500);
+        final long batchIntervalMs = params.getLong(ConfigKeys.MYSQL_BATCH_INTERVAL_MS, 5000);
         final int maxRetries = params.getInt(ConfigKeys.MYSQL_MAX_RETRIES, 3);
 
         String insertSql = "INSERT INTO " + tableName + " (" +
@@ -185,7 +183,8 @@ public class InvoiceRequest {
                                 .withPassword(dbPassword)
                                 .build()
                 )
-        ).name("MySQL Sink");
+        ).name("MySQL Sink")
+        .setParallelism(defaultJobParallelism*2);
 
         env.execute("Flink Kafka to MySQL Invoice Processing Job");
 

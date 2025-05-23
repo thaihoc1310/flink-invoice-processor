@@ -5,13 +5,23 @@ public final class ConfigKeys {
     static public final String DEFAULT_CONFIG_FILE_CLASSPATH = "application.properties";
 
     static public final String KAFKA_BOOTSTRAP_SERVERS = "kafka.bootstrap.servers";
-    static public final String KAFKA_TOPIC_PRIMARY = "kafka.topic.crt.request";
+    static public final String KAFKA_TOPIC_CRT_REQUEST = "kafka.topic.crt.request";
+    static public final String KAFKA_TOPIC_UPD_REQUEST = "kafka.topic.upd.request";
+    static public final String KAFKA_TOPIC_DEL_REQUEST = "kafka.topic.del.request";
+    static public final String KAFKA_TOPIC_REP_REQUEST = "kafka.topic.rep.request";
+    static public final String KAFKA_TOPIC_ADJ_REQUEST = "kafka.topic.adj.request";
+
     static public final String KAFKA_TOPIC_RETRY_1 = "kafka.topic.retry.1";
     static public final String KAFKA_TOPIC_RETRY_2 = "kafka.topic.retry.2";
     static public final String KAFKA_TOPIC_RETRY_3 = "kafka.topic.retry.3";
     static public final String KAFKA_TOPIC_DLQ = "kafka.topic.dlq";
 
-    static public final String KAFKA_GROUP_ID_PRIMARY = "kafka.group.id.crt.request";
+    static public final String KAFKA_GROUP_ID_CRT_REQUEST = "kafka.group.id.crt.request";
+    static public final String KAFKA_GROUP_ID_UPD_REQUEST = "kafka.group.id.upd.request";
+    static public final String KAFKA_GROUP_ID_DEL_REQUEST = "kafka.group.id.del.request";
+    static public final String KAFKA_GROUP_ID_REP_REQUEST = "kafka.group.id.rep.request";
+    static public final String KAFKA_GROUP_ID_ADJ_REQUEST = "kafka.group.id.adj.request";
+
     static public final String KAFKA_GROUP_ID_RETRY_1 = "kafka.group.id.retry.1";
     static public final String KAFKA_GROUP_ID_RETRY_2 = "kafka.group.id.retry.2";
     static public final String KAFKA_GROUP_ID_RETRY_3 = "kafka.group.id.retry.3";

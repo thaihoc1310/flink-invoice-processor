@@ -24,7 +24,7 @@ import java.io.InputStream;
 import java.sql.Types;
 import java.util.Properties;
 
-public class DataStreamJob {
+public class InvoiceRequest {
     public static final OutputTag<String> retry1OutputTag = new OutputTag<String>("retry-1-output"){};
     public static final OutputTag<String> retry2OutputTag = new OutputTag<String>("retry-2-output"){};
     public static final OutputTag<String> retry3OutputTag = new OutputTag<String>("retry-3-output"){};
@@ -197,7 +197,7 @@ public class DataStreamJob {
             String configFilePath = parameterToolFromArgs.getRequired(ConfigKeys.CONFIG_FILE_PARAM);
             return ParameterTool.fromPropertiesFile(configFilePath);
         } else {
-            try (InputStream inputStream = DataStreamJob.class.getClassLoader().getResourceAsStream(ConfigKeys.DEFAULT_CONFIG_FILE_CLASSPATH)) {
+            try (InputStream inputStream = InvoiceRequest.class.getClassLoader().getResourceAsStream(ConfigKeys.DEFAULT_CONFIG_FILE_CLASSPATH)) {
                 return ParameterTool.fromPropertiesFile(inputStream);
             }
         }

@@ -20,7 +20,7 @@ public class InvoiceTransformer{
 
     public List<InvoiceMysqlRecord> transform(String jsonString) throws Exception {
         List<InvoiceMysqlRecord> records = new ArrayList<>();
-        JsonNode rootNode = objectMapper.readTree(jsonString); // Can throw JsonProcessingException
+        JsonNode rootNode = objectMapper.readTree(jsonString);
         JsonNode invoicesBatchNode = rootNode.path("inv_pack");
 
             if (invoicesBatchNode.isArray()) {
@@ -31,34 +31,16 @@ public class InvoiceTransformer{
                     boolean hasInvNode = singleInvoiceJson.has("inv");
 
                     if (hasInvNode) {
-                        invNode = singleInvoiceJson.path("inv");
-                        if (invNode.isMissingNode()) {
-                            throw new IllegalArgumentException("Missing 'inv' in invoice item: " + singleInvoiceJson);
-                        }
-                        if (invNode.path("sid").isMissingNode()) {
-                            throw new IllegalArgumentException("Missing 'inv.sid' in invoice item: " + singleInvoiceJson);
-                        }
-                        if (invNode.path("stax").isMissingNode()) {
-                            throw new IllegalArgumentException("Missing 'inv.stax' in invoice item: " + singleInvoiceJson);
-                        }
-                        record.tax_schema = invNode.path("stax").asText();
-                        record.sid = invNode.path("sid").asText();
+                        invNode = singleInvoiceJson.get("inv");
+                        record.tax_schema = invNode.get("stax").asText();
+                        record.sid = invNode.get("sid").asText();
                     } else {
-                        if (singleInvoiceJson.path("sid").isMissingNode()){
-                             throw new IllegalArgumentException("Missing 'sid' in invoice item (no 'inv' node): " + singleInvoiceJson);
-                        }
-                        if (singleInvoiceJson.path("stax").isMissingNode()) {
-                            throw new IllegalArgumentException("Missing 'stax' in invoice item (no 'inv' node): " + singleInvoiceJson);
-                        }
-                        record.tax_schema = singleInvoiceJson.path("stax").asText();
-                        record.sid = singleInvoiceJson.path("sid").asText();
+                        record.tax_schema = singleInvoiceJson.get("stax").asText();
+                        record.sid = singleInvoiceJson.get("sid").asText();
                     }
 
-                    if (singleInvoiceJson.path("api_type").isMissingNode()) {
-                        throw new IllegalArgumentException("Missing 'api_type' in invoice item: " + singleInvoiceJson);
-                    }
                     record.inv = objectMapper.writeValueAsString(singleInvoiceJson);
-                    record.api_type = (byte) singleInvoiceJson.path("api_type").asInt();
+                    record.api_type = (byte) singleInvoiceJson.get("api_type").asInt();
                     record.fpt_einvoice_res_code = null;
                     record.fpt_einvoice_res_msg = null;
                     record.fpt_einvoice_res_json = null;

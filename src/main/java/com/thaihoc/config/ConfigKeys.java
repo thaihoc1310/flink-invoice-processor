@@ -11,9 +11,7 @@ public final class ConfigKeys {
     static public final String KAFKA_TOPIC_REP_REQUEST = "kafka.topic.rep.request";
     static public final String KAFKA_TOPIC_ADJ_REQUEST = "kafka.topic.adj.request";
 
-    static public final String KAFKA_TOPIC_RETRY_1 = "kafka.topic.retry.1";
-    static public final String KAFKA_TOPIC_RETRY_2 = "kafka.topic.retry.2";
-    static public final String KAFKA_TOPIC_RETRY_3 = "kafka.topic.retry.3";
+    static public final String KAFKA_TOPIC_RETRY = "kafka.topic.retry";
     static public final String KAFKA_TOPIC_DLQ = "kafka.topic.dlq";
 
     static public final String KAFKA_GROUP_ID_CRT_REQUEST = "kafka.group.id.crt.request";
@@ -22,9 +20,7 @@ public final class ConfigKeys {
     static public final String KAFKA_GROUP_ID_REP_REQUEST = "kafka.group.id.rep.request";
     static public final String KAFKA_GROUP_ID_ADJ_REQUEST = "kafka.group.id.adj.request";
 
-    static public final String KAFKA_GROUP_ID_RETRY_1 = "kafka.group.id.retry.1";
-    static public final String KAFKA_GROUP_ID_RETRY_2 = "kafka.group.id.retry.2";
-    static public final String KAFKA_GROUP_ID_RETRY_3 = "kafka.group.id.retry.3";
+    static public final String KAFKA_GROUP_ID_RETRY = "kafka.group.id.retry";
 
     static public final String KAFKA_SASL_USERNAME = "kafka.sasl.username";
     static public final String KAFKA_SASL_PASSWORD = "kafka.sasl.password";
@@ -40,10 +36,10 @@ public final class ConfigKeys {
     static public final String MYSQL_SINK_PARALLELISM = "mysql.sink.parallelism";
 
     static public final String APP_GROUP_ID_MAX_VALUE = "group.id.max.value";
+    static public final String APP_MAX_RETRIES = "app.max.retries";
 
     static public final String FLINK_JOB_PARALLELISM = "flink.job.parallelism";
 
-    static public final int MAX_KAFKA_RETRIES = 3;
 }
 
 

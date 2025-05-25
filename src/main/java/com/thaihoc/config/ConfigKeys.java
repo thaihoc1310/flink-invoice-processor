@@ -10,6 +10,11 @@ public final class ConfigKeys {
     static public final String KAFKA_TOPIC_DEL_REQUEST = "kafka.topic.del.request";
     static public final String KAFKA_TOPIC_REP_REQUEST = "kafka.topic.rep.request";
     static public final String KAFKA_TOPIC_ADJ_REQUEST = "kafka.topic.adj.request";
+    static public final String KAFKA_TOPIC_CRT_RESPONSE = "kafka.topic.crt.response";
+    static public final String KAFKA_TOPIC_UPD_RESPONSE = "kafka.topic.upd.response";
+    static public final String KAFKA_TOPIC_DEL_RESPONSE = "kafka.topic.del.response";
+    static public final String KAFKA_TOPIC_REP_RESPONSE = "kafka.topic.rep.response";
+    static public final String KAFKA_TOPIC_ADJ_RESPONSE = "kafka.topic.adj.response";
 
     static public final String KAFKA_TOPIC_RETRY = "kafka.topic.retry";
     static public final String KAFKA_TOPIC_DLQ = "kafka.topic.dlq";
@@ -35,10 +40,17 @@ public final class ConfigKeys {
     static public final String MYSQL_MAX_RETRIES = "mysql.max.retries";
     static public final String MYSQL_SINK_PARALLELISM = "mysql.sink.parallelism";
 
+    static public final String MYSQL_POLLING_INTERVAL_MS = "mysql.polling.interval.ms";
+    static public final String MYSQL_FETCH_SIZE = "mysql.fetch.size";
+
+    static public final String FLINK_JOB_PARALLELISM = "flink.job.parallelism";
+    
     static public final String APP_GROUP_ID_MAX_VALUE = "group.id.max.value";
     static public final String APP_MAX_RETRIES = "app.max.retries";
 
-    static public final String FLINK_JOB_PARALLELISM = "flink.job.parallelism";
+    static public final String RESPONSE_BATCH_SIZE = "response.batch.size";
+    static public final String RESPONSE_BATCH_TIMEOUT_MS = "response.batch.timeout.ms";
+
 
 }
 

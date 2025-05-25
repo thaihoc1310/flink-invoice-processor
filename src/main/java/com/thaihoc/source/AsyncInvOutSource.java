@@ -1,0 +1,89 @@
+package com.thaihoc.source;
+
+import com.thaihoc.model.AsyncInvOutRecord;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
+
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class AsyncInvOutSource extends RichSourceFunction<AsyncInvOutRecord> {
+    private volatile boolean isRunning = true;
+    private final String jdbcUrl;
+    private final String username;
+    private final String password;
+    private final long pollingIntervalMs;
+    private final int fetchSize;
+    private Connection connection;
+    
+    public AsyncInvOutSource(String jdbcUrl, String username, String password, long pollingIntervalMs, int fetchSize) {
+        this.jdbcUrl = jdbcUrl;
+        this.username = username;
+        this.password = password;
+        this.pollingIntervalMs = pollingIntervalMs;
+        this.fetchSize = fetchSize;
+    }
+    
+    @Override
+    public void open(Configuration parameters) throws Exception {
+        super.open(parameters);
+        Class.forName("com.mysql.cj.jdbc.Driver");
+        connection = DriverManager.getConnection(jdbcUrl, username, password);
+    }
+    
+    @Override
+    public void run(SourceContext<AsyncInvOutRecord> ctx) throws Exception {
+        while (isRunning) {
+            String sql = "SELECT * FROM async_inv_out WHERE res_type = 2 AND state = 0 LIMIT " + fetchSize;
+            try (PreparedStatement stmt = connection.prepareStatement(sql);
+                 ResultSet rs = stmt.executeQuery()) {
+                
+                List<AsyncInvOutRecord> records = new ArrayList<>();
+                while (rs.next()) {
+                    AsyncInvOutRecord record = new AsyncInvOutRecord();
+                    record.id = rs.getInt("id");
+                    record.tax_schema = rs.getString("tax_schema");
+                    record.gdt_res = rs.getString("gdt_res");
+                    record.sid = rs.getString("sid");
+                    record.syncid = rs.getString("syncid");
+                    record.retry = rs.getByte("retry");
+                    record.state = rs.getByte("state");
+                    record.group_id = rs.getByte("group_id");
+                    record.created_date = rs.getTimestamp("created_date");
+                    record.updated_date = rs.getTimestamp("updated_date");
+                    record.res_type = rs.getByte("res_type");
+                    record.process_kafka = rs.getString("process_kafka");
+                    record.api_type = rs.getByte("api_type");
+                    records.add(record);
+                }
+                
+                // Emit records
+                for (AsyncInvOutRecord record : records) {
+                    ctx.collect(record);
+                }
+                
+            } catch (Exception e) {
+                // Log error but continue
+                System.err.println("Error reading from async_inv_out: " + e.getMessage());
+            }
+            
+            // Always wait pollingIntervalMs regardless of whether records were found
+            // This ensures consistent polling and prevents one source from blocking others
+            Thread.sleep(pollingIntervalMs);
+        }
+    }
+    
+    @Override
+    public void cancel() {
+        isRunning = false;
+    }
+    
+    @Override
+    public void close() throws Exception {
+        super.close();
+        if (connection != null) {
+            connection.close();
+        }
+    }
+} 

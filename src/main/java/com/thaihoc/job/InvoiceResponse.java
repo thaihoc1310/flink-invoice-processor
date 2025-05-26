@@ -73,55 +73,29 @@ public class InvoiceResponse {
         final int responseBatchSize = params.getInt(ConfigKeys.RESPONSE_BATCH_SIZE, 100);
         final long responseBatchTimeoutMs = params.getLong(ConfigKeys.RESPONSE_BATCH_TIMEOUT_MS, 5000);
         
-        // Process invInStream independently
-        DataStream<RecordInterface> invInRecords = invInStream.map(record -> (RecordInterface) record);
-        BatchResponseProcessor batchProcessorIn = new BatchResponseProcessor(responseBatchSize, responseBatchTimeoutMs);
-        SingleOutputStreamOperator<String> processedBatchesIn = invInRecords
+        DataStream<RecordInterface> unionInvRecords = invInStream.map(record -> (RecordInterface) record)
+                .union(invOutStream.map(record -> (RecordInterface) record));
+        BatchResponseProcessor batchProcessorUnion = new BatchResponseProcessor(responseBatchSize, responseBatchTimeoutMs);
+        SingleOutputStreamOperator<String> processedBatchesUnion = unionInvRecords
                 .keyBy(new KeySelector<RecordInterface, Byte>() {
                     @Override
                     public Byte getKey(RecordInterface record) throws Exception {
                         return record.getApiType();
                     }
                 })
-                .process(batchProcessorIn)
-                .name("Batch Response Processing (InvIn)");
+                .process(batchProcessorUnion)
+                .name("Batch Response Processing (Union)");
 
-        // Process invOutStream independently  
-        DataStream<RecordInterface> invOutRecords = invOutStream.map(record -> (RecordInterface) record);
-        BatchResponseProcessor batchProcessorOut = new BatchResponseProcessor(responseBatchSize, responseBatchTimeoutMs);
-        SingleOutputStreamOperator<String> processedBatchesOut = invOutRecords
-                .keyBy(new KeySelector<RecordInterface, Byte>() {
-                    @Override
-                    public Byte getKey(RecordInterface record) throws Exception {
-                        return record.getApiType();
-                    }
-                })
-                .process(batchProcessorOut)
-                .name("Batch Response Processing (InvOut)");
-
-        // Route batched responses from invIn to appropriate Kafka topics
-        processedBatchesIn.getSideOutput(BatchResponseProcessor.CRT_OUTPUT_TAG)
-                .sinkTo(crtResponseSink).name("Sink CRT Batch Responses (InvIn)");
-        processedBatchesIn.getSideOutput(BatchResponseProcessor.UPD_OUTPUT_TAG)
-                .sinkTo(updResponseSink).name("Sink UPD Batch Responses (InvIn)");
-        processedBatchesIn.getSideOutput(BatchResponseProcessor.DEL_OUTPUT_TAG)
-                .sinkTo(delResponseSink).name("Sink DEL Batch Responses (InvIn)");
-        processedBatchesIn.getSideOutput(BatchResponseProcessor.REP_OUTPUT_TAG)
-                .sinkTo(repResponseSink).name("Sink REP Batch Responses (InvIn)");
-        processedBatchesIn.getSideOutput(BatchResponseProcessor.ADJ_OUTPUT_TAG)
-                .sinkTo(adjResponseSink).name("Sink ADJ Batch Responses (InvIn)");
-
-        // Route batched responses from invOut to appropriate Kafka topics
-        processedBatchesOut.getSideOutput(BatchResponseProcessor.CRT_OUTPUT_TAG)
-                .sinkTo(crtResponseSink).name("Sink CRT Batch Responses (InvOut)");
-        processedBatchesOut.getSideOutput(BatchResponseProcessor.UPD_OUTPUT_TAG)
-                .sinkTo(updResponseSink).name("Sink UPD Batch Responses (InvOut)");
-        processedBatchesOut.getSideOutput(BatchResponseProcessor.DEL_OUTPUT_TAG)
-                .sinkTo(delResponseSink).name("Sink DEL Batch Responses (InvOut)");
-        processedBatchesOut.getSideOutput(BatchResponseProcessor.REP_OUTPUT_TAG)
-                .sinkTo(repResponseSink).name("Sink REP Batch Responses (InvOut)");
-        processedBatchesOut.getSideOutput(BatchResponseProcessor.ADJ_OUTPUT_TAG)
-                .sinkTo(adjResponseSink).name("Sink ADJ Batch Responses (InvOut)");
+        processedBatchesUnion.getSideOutput(BatchResponseProcessor.CRT_OUTPUT_TAG)
+                .sinkTo(crtResponseSink).name("Sink CRT Batch Responses (InvIn + InvOut)");
+        processedBatchesUnion.getSideOutput(BatchResponseProcessor.UPD_OUTPUT_TAG)
+                .sinkTo(updResponseSink).name("Sink UPD Batch Responses (InvIn + InvOut)");
+        processedBatchesUnion.getSideOutput(BatchResponseProcessor.DEL_OUTPUT_TAG)
+                .sinkTo(delResponseSink).name("Sink DEL Batch Responses (InvIn + InvOut)");
+        processedBatchesUnion.getSideOutput(BatchResponseProcessor.REP_OUTPUT_TAG)
+                .sinkTo(repResponseSink).name("Sink REP Batch Responses (InvIn + InvOut)");
+        processedBatchesUnion.getSideOutput(BatchResponseProcessor.ADJ_OUTPUT_TAG)
+                .sinkTo(adjResponseSink).name("Sink ADJ Batch Responses (InvIn + InvOut)");
 
         // Insert invIn records to async_inv_succ_log
         DataStream<AsyncInvSuccLogRecord> succLogRecords = invInStream.map(new MapFunction<AsyncInvInRecord, AsyncInvSuccLogRecord>() {

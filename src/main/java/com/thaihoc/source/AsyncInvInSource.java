@@ -16,6 +16,7 @@ public class AsyncInvInSource extends RichSourceFunction<AsyncInvInRecord> {
     private final long pollingIntervalMs;
     private final int fetchSize;
     private Connection connection;
+    private volatile long lastProcessedId = 0; // Track last processed ID
     
     public AsyncInvInSource(String jdbcUrl, String username, String password, long pollingIntervalMs, int fetchSize) {
         this.jdbcUrl = jdbcUrl;
@@ -30,47 +31,73 @@ public class AsyncInvInSource extends RichSourceFunction<AsyncInvInRecord> {
         super.open(parameters);
         Class.forName("com.mysql.cj.jdbc.Driver");
         connection = DriverManager.getConnection(jdbcUrl, username, password);
+        
+        // Initialize lastProcessedId from database or checkpoint
+//        initializeLastProcessedId();
+    }
+    
+    private void initializeLastProcessedId() throws SQLException {
+        // Get the maximum ID that was already processed to avoid reprocessing
+        String sql = "SELECT COALESCE(MAX(id), 0) as max_id FROM async_inv_in WHERE res_type = 2 AND state = 4";
+        try (PreparedStatement stmt = connection.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+            if (rs.next()) {
+                lastProcessedId = rs.getLong("max_id");
+                System.out.println("Initialized lastProcessedId: " + lastProcessedId);
+            }
+        }
     }
     
     @Override
     public void run(SourceContext<AsyncInvInRecord> ctx) throws Exception {
         while (isRunning) {
-            String sql = "SELECT * FROM async_inv_in WHERE res_type = 2 AND state = 4 LIMIT " + fetchSize;
-            try (PreparedStatement stmt = connection.prepareStatement(sql);
-                 ResultSet rs = stmt.executeQuery()) {
+            // Use offset-based polling to avoid reading same records
+            String sql = "SELECT * FROM async_inv_in WHERE res_type = 2 AND state = 4 AND id > ? ORDER BY id ASC LIMIT " + fetchSize;
+            
+            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                stmt.setLong(1, lastProcessedId);
                 
-                List<AsyncInvInRecord> records = new ArrayList<>();
-                while (rs.next()) {
-                    AsyncInvInRecord record = new AsyncInvInRecord();
-                    record.id = rs.getInt("id");
-                    record.tax_schema = rs.getString("tax_schema");
-                    record.api_type = rs.getByte("api_type");
-                    record.fpt_einvoice_res_code = rs.getString("fpt_einvoice_res_code");
-                    record.fpt_einvoice_res_msg = rs.getString("fpt_einvoice_res_msg");
-                    record.fpt_einvoice_res_json = rs.getString("fpt_einvoice_res_json");
-                    record.sid = rs.getString("sid");
-                    record.syncid = rs.getString("syncid");
-                    record.retry = rs.getByte("retry");
-                    record.state = rs.getByte("state");
-                    record.group_id = rs.getByte("group_id");
-                    record.callback_res_code = rs.getString("callback_res_code");
-                    record.callback_res_msg = rs.getString("callback_res_msg");
-                    record.res_type = rs.getByte("res_type");
-                    records.add(record);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    List<AsyncInvInRecord> records = new ArrayList<>();
+                    long maxIdInBatch = lastProcessedId;
+                    
+                    while (rs.next()) {
+                        AsyncInvInRecord record = new AsyncInvInRecord();
+                        record.id = rs.getInt("id");
+                        record.tax_schema = rs.getString("tax_schema");
+                        record.api_type = rs.getByte("api_type");
+                        record.fpt_einvoice_res_code = rs.getString("fpt_einvoice_res_code");
+                        record.fpt_einvoice_res_msg = rs.getString("fpt_einvoice_res_msg");
+                        record.fpt_einvoice_res_json = rs.getString("fpt_einvoice_res_json");
+                        record.sid = rs.getString("sid");
+                        record.syncid = rs.getString("syncid");
+                        record.retry = rs.getByte("retry");
+                        record.state = rs.getByte("state");
+                        record.group_id = rs.getByte("group_id");
+                        record.callback_res_code = rs.getString("callback_res_code");
+                        record.callback_res_msg = rs.getString("callback_res_msg");
+                        record.res_type = rs.getByte("res_type");
+                        records.add(record);
+                        
+                        // Track the maximum ID in this batch
+                        maxIdInBatch = Math.max(maxIdInBatch, record.id);
+                    }
+                    
+                    // Emit records
+                    for (AsyncInvInRecord record : records) {
+                        ctx.collect(record);
+                    }
+                    
+                    // Update lastProcessedId only if we found records
+                    if (!records.isEmpty()) {
+                        lastProcessedId = maxIdInBatch;
+                    }
                 }
                 
-                // Emit records
-                for (AsyncInvInRecord record : records) {
-                    ctx.collect(record);
-                }
-                
-            } catch (Exception e) {
-                // Log error but continue
-                System.err.println("Error reading from async_inv_in: " + e.getMessage());
+            } catch (Exception ignored) {
             }
             
-            // Always wait pollingIntervalMs regardless of whether records were found
-            // This ensures consistent polling and prevents one source from blocking others
+            // Wait before next poll
             Thread.sleep(pollingIntervalMs);
         }
     }

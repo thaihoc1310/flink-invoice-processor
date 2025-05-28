@@ -1,4 +1,4 @@
-package com.thaihoc.process;
+package com.thaihoc.process.request;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;

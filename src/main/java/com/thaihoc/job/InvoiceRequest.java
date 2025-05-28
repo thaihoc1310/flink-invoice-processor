@@ -3,7 +3,7 @@ package com.thaihoc.job;
 
 import com.thaihoc.config.ConfigKeys;
 import com.thaihoc.model.InvoiceMysqlRecord;
-import com.thaihoc.process.InvoiceProcessingRouter;
+import com.thaihoc.process.request.InvoiceProcessingRouter;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.connector.jdbc.JdbcConnectionOptions;

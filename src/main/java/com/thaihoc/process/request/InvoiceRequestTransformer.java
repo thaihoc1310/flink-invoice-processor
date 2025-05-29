@@ -9,11 +9,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class InvoiceTransformer{
+public class InvoiceRequestTransformer {
     private final transient ObjectMapper objectMapper;
     private final int maxGroupIdValue;
 
-    public InvoiceTransformer(int maxGroupIdValue) {
+    public InvoiceRequestTransformer(int maxGroupIdValue) {
         this.maxGroupIdValue = maxGroupIdValue;
         this.objectMapper = new ObjectMapper();
     }

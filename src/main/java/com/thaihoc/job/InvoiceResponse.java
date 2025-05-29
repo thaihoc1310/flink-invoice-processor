@@ -4,7 +4,8 @@ import com.thaihoc.config.ConfigKeys;
 import com.thaihoc.model.AsyncInvInRecord;
 import com.thaihoc.model.AsyncInvOutRecord;
 import com.thaihoc.model.RecordInterface;
-import com.thaihoc.process.response.SequentialInvoiceProcessor;
+import com.thaihoc.process.response.InvoiceResponseBatchProcessor;
+import com.thaihoc.process.response.InvoiceResponseKafkaRouter;
 import com.thaihoc.sink.TransactionalLogAndDeleteSink;
 import com.thaihoc.source.AsyncInvInSource;
 import com.thaihoc.source.AsyncInvOutSource;
@@ -25,8 +26,13 @@ public class InvoiceResponse {
 
                 ParameterTool params = loadParameters(args);
 
+                // Load parallelism configurations
                 final int defaultJobParallelism = params.getInt(ConfigKeys.FLINK_JOB_PARALLELISM, 1);
-                final int mySqlSinkParallelism = params.getInt(ConfigKeys.MYSQL_SINK_PARALLELISM, 1);
+                final int mysqlSourceParallelism = params.getInt(ConfigKeys.RESPONSE_MYSQL_SOURCE_PARALLELISM, defaultJobParallelism);
+                final int batchProcessorParallelism = params.getInt(ConfigKeys.RESPONSE_BATCH_PROCESSOR_PARALLELISM, defaultJobParallelism);
+                final int kafkaSinkParallelism = params.getInt(ConfigKeys.RESPONSE_KAFKA_SINK_PARALLELISM, defaultJobParallelism);
+                final int transactionalSinkParallelism = params.getInt(ConfigKeys.RESPONSE_TRANSACTIONAL_SINK_PARALLELISM, defaultJobParallelism);
+                
                 env.setParallelism(defaultJobParallelism);
 
                 // Database configuration
@@ -37,14 +43,16 @@ public class InvoiceResponse {
                 final int fetchSize = params.getInt(ConfigKeys.MYSQL_FETCH_SIZE, 1000);
                 final int sqlMaxRetries = params.getInt(ConfigKeys.MYSQL_MAX_RETRIES, 3);
 
-                // Create data streams
+                // Create data streams with explicit parallelism
                 DataStream<AsyncInvInRecord> invInStream = env.addSource(
                                 new AsyncInvInSource(jdbcUrl, dbUsername, dbPassword, pollingIntervalMs, fetchSize))
-                                .name("MySQL Source (async_inv_in)");
+                                .name("MySQL Source (async_inv_in)")
+                                .setParallelism(mysqlSourceParallelism);
 
                 DataStream<AsyncInvOutRecord> invOutStream = env.addSource(
                                 new AsyncInvOutSource(jdbcUrl, dbUsername, dbPassword, pollingIntervalMs, fetchSize))
-                                .name("MySQL Source (async_inv_out)");
+                                .name("MySQL Source (async_inv_out)")
+                                .setParallelism(mysqlSourceParallelism);
 
                 // Create Kafka sinks
                 KafkaSink<String> crtResponseSink = createKafkaSink(params, ConfigKeys.KAFKA_TOPIC_CRT_RESPONSE);
@@ -55,14 +63,14 @@ public class InvoiceResponse {
 
                 // Response batch configuration
                 final int responseBatchSize = params.getInt(ConfigKeys.RESPONSE_BATCH_SIZE, 100);
-                final long responseBatchTimeoutMs = params.getLong(ConfigKeys.RESPONSE_BATCH_TIMEOUT_MS, 5000);
+                final long responseBatchTimeoutMs = params.getLong(ConfigKeys.RESPONSE_BATCH_TIMEOUT_MS, 3000);
 
                 // Combine both streams for unified processing
                 DataStream<RecordInterface> InvInRecords = invInStream.map(record -> (RecordInterface) record);
                 DataStream<RecordInterface> InvOutRecords = invOutStream.map(record -> (RecordInterface) record);
                 DataStream<RecordInterface> allRecords = InvInRecords.union(InvOutRecords);
 
-                SequentialInvoiceProcessor sequentialProcessor = new SequentialInvoiceProcessor(responseBatchSize,
+                InvoiceResponseBatchProcessor batchProcessor = new InvoiceResponseBatchProcessor(responseBatchSize,
                                 responseBatchTimeoutMs);
                 SingleOutputStreamOperator<String> processedBatches = allRecords
                                 .keyBy(new KeySelector<RecordInterface, Byte>() {
@@ -71,27 +79,39 @@ public class InvoiceResponse {
                                                 return record.getApiType();
                                         }
                                 })
-                                .process(sequentialProcessor)
-                                .name("Sequential Invoice Processing");
+                                .process(batchProcessor)
+                                .name("Invoice Response Batch Processing")
+                                .setParallelism(batchProcessorParallelism);
 
-                processedBatches.getSideOutput(SequentialInvoiceProcessor.CRT_OUTPUT_TAG)
-                                .sinkTo(crtResponseSink).name("Sink CRT Batch Responses");
-                processedBatches.getSideOutput(SequentialInvoiceProcessor.UPD_OUTPUT_TAG)
-                                .sinkTo(updResponseSink).name("Sink UPD Batch Responses");
-                processedBatches.getSideOutput(SequentialInvoiceProcessor.DEL_OUTPUT_TAG)
-                                .sinkTo(delResponseSink).name("Sink DEL Batch Responses");
-                processedBatches.getSideOutput(SequentialInvoiceProcessor.REP_OUTPUT_TAG)
-                                .sinkTo(repResponseSink).name("Sink REP Batch Responses");
-                processedBatches.getSideOutput(SequentialInvoiceProcessor.ADJ_OUTPUT_TAG)
-                                .sinkTo(adjResponseSink).name("Sink ADJ Batch Responses");
+                // Kafka sinks with explicit parallelism
+                processedBatches.getSideOutput(InvoiceResponseKafkaRouter.CRT_OUTPUT_TAG)
+                                .sinkTo(crtResponseSink)
+                                .name("Sink CRT Batch Responses")
+                                .setParallelism(kafkaSinkParallelism);
+                processedBatches.getSideOutput(InvoiceResponseKafkaRouter.UPD_OUTPUT_TAG)
+                                .sinkTo(updResponseSink)
+                                .name("Sink UPD Batch Responses")
+                                .setParallelism(kafkaSinkParallelism);
+                processedBatches.getSideOutput(InvoiceResponseKafkaRouter.DEL_OUTPUT_TAG)
+                                .sinkTo(delResponseSink)
+                                .name("Sink DEL Batch Responses")
+                                .setParallelism(kafkaSinkParallelism);
+                processedBatches.getSideOutput(InvoiceResponseKafkaRouter.REP_OUTPUT_TAG)
+                                .sinkTo(repResponseSink)
+                                .name("Sink REP Batch Responses")
+                                .setParallelism(kafkaSinkParallelism);
+                processedBatches.getSideOutput(InvoiceResponseKafkaRouter.ADJ_OUTPUT_TAG)
+                                .sinkTo(adjResponseSink)
+                                .name("Sink ADJ Batch Responses")
+                                .setParallelism(kafkaSinkParallelism);
 
                 TransactionalLogAndDeleteSink transactionalProcessor = new TransactionalLogAndDeleteSink(
                                 jdbcUrl, dbUsername, dbPassword, sqlMaxRetries);
 
-                processedBatches.getSideOutput(SequentialInvoiceProcessor.DATABASE_OPERATIONS_TAG)
+                processedBatches.getSideOutput(InvoiceResponseBatchProcessor.DATABASE_OPERATIONS_TAG)
                                 .addSink(transactionalProcessor)
                                 .name("Transactional Database Operations")
-                                .setParallelism(mySqlSinkParallelism);
+                                .setParallelism(transactionalSinkParallelism);
 
                 env.execute("Invoice Response Job");
         }

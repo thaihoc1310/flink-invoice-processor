@@ -38,20 +38,30 @@ public final class ConfigKeys {
     static public final String MYSQL_BATCH_SIZE = "mysql.batch.size";
     static public final String MYSQL_BATCH_INTERVAL_MS = "mysql.batch.interval.ms";
     static public final String MYSQL_MAX_RETRIES = "mysql.max.retries";
-    static public final String MYSQL_SINK_PARALLELISM = "mysql.sink.parallelism";
 
     static public final String MYSQL_POLLING_INTERVAL_MS = "mysql.polling.interval.ms";
     static public final String MYSQL_FETCH_SIZE = "mysql.fetch.size";
 
     static public final String FLINK_JOB_PARALLELISM = "flink.job.parallelism";
     
+    // Invoice Request Job Parallelism Configuration
+    static public final String REQUEST_KAFKA_SOURCE_PARALLELISM = "request.kafka.source.parallelism";
+    static public final String REQUEST_PROCESSOR_PARALLELISM = "request.processor.parallelism";
+    static public final String REQUEST_RETRY_SINK_PARALLELISM = "request.retry.sink.parallelism";
+    static public final String REQUEST_DLQ_SINK_PARALLELISM = "request.dlq.sink.parallelism";
+    static public final String REQUEST_MYSQL_SINK_PARALLELISM = "request.mysql.sink.parallelism";
+    
+    // Invoice Response Job Parallelism Configuration
+    static public final String RESPONSE_MYSQL_SOURCE_PARALLELISM = "response.mysql.source.parallelism";
+    static public final String RESPONSE_BATCH_PROCESSOR_PARALLELISM = "response.batch.processor.parallelism";
+    static public final String RESPONSE_KAFKA_SINK_PARALLELISM = "response.kafka.sink.parallelism";
+    static public final String RESPONSE_TRANSACTIONAL_SINK_PARALLELISM = "response.transactional.sink.parallelism";
+    
     static public final String APP_GROUP_ID_MAX_VALUE = "group.id.max.value";
     static public final String APP_MAX_RETRIES = "app.max.retries";
 
     static public final String RESPONSE_BATCH_SIZE = "response.batch.size";
     static public final String RESPONSE_BATCH_TIMEOUT_MS = "response.batch.timeout.ms";
-
-
 }
 
 

@@ -3,7 +3,7 @@ package com.thaihoc.job;
 
 import com.thaihoc.config.ConfigKeys;
 import com.thaihoc.model.InvoiceMysqlRecord;
-import com.thaihoc.process.request.InvoiceProcessingRouter;
+import com.thaihoc.process.request.InvoiceRequestRouter;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.connector.jdbc.JdbcConnectionOptions;
@@ -30,10 +30,14 @@ public class InvoiceRequest {
 
         ParameterTool params = loadParameters(args);
 
+        // Load parallelism configurations
         final int defaultJobParallelism = params.getInt(ConfigKeys.FLINK_JOB_PARALLELISM, 1);
-        final int mySqlSinkParallelism = params.getInt(ConfigKeys.MYSQL_SINK_PARALLELISM, 1);
-//        final int primaryProcessorParallelism = defaultJobParallelism * 2;
-        // final int retryAndDlqSinkParallelism = Math.max(1, defaultJobParallelism / 2);
+        final int kafkaSourceParallelism = params.getInt(ConfigKeys.REQUEST_KAFKA_SOURCE_PARALLELISM, defaultJobParallelism);
+        final int processorParallelism = params.getInt(ConfigKeys.REQUEST_PROCESSOR_PARALLELISM, defaultJobParallelism);
+        final int retrySinkParallelism = params.getInt(ConfigKeys.REQUEST_RETRY_SINK_PARALLELISM, 1);
+        final int dlqSinkParallelism = params.getInt(ConfigKeys.REQUEST_DLQ_SINK_PARALLELISM, 1);
+        final int mySqlSinkParallelism = params.getInt(ConfigKeys.REQUEST_MYSQL_SINK_PARALLELISM, defaultJobParallelism);
+        
         env.setParallelism(defaultJobParallelism);
 
         KafkaSource<String> crtRequestSource = createKafkaSource(params, ConfigKeys.KAFKA_TOPIC_CRT_REQUEST, ConfigKeys.KAFKA_GROUP_ID_CRT_REQUEST);
@@ -46,13 +50,19 @@ public class InvoiceRequest {
 
 
 
-        DataStream<String> crtRequestJsonStream = env.fromSource(crtRequestSource, WatermarkStrategy.noWatermarks(), "Kafka CRT Request Source");
-        DataStream<String> updRequestJsonStream = env.fromSource(updRequestSource, WatermarkStrategy.noWatermarks(), "Kafka UPD Request Source");
-        DataStream<String> delRequestJsonStream = env.fromSource(delRequestSource, WatermarkStrategy.noWatermarks(), "Kafka DEL Request Source");
-        DataStream<String> repRequestJsonStream = env.fromSource(repRequestSource, WatermarkStrategy.noWatermarks(), "Kafka REP Request Source");
-        DataStream<String> adjRequestJsonStream = env.fromSource(adjRequestSource, WatermarkStrategy.noWatermarks(), "Kafka ADJ Request Source");
+        DataStream<String> crtRequestJsonStream = env.fromSource(crtRequestSource, WatermarkStrategy.noWatermarks(), "Kafka CRT Request Source")
+                .setParallelism(kafkaSourceParallelism);
+        DataStream<String> updRequestJsonStream = env.fromSource(updRequestSource, WatermarkStrategy.noWatermarks(), "Kafka UPD Request Source")
+                .setParallelism(kafkaSourceParallelism);
+        DataStream<String> delRequestJsonStream = env.fromSource(delRequestSource, WatermarkStrategy.noWatermarks(), "Kafka DEL Request Source")
+                .setParallelism(kafkaSourceParallelism);
+        DataStream<String> repRequestJsonStream = env.fromSource(repRequestSource, WatermarkStrategy.noWatermarks(), "Kafka REP Request Source")
+                .setParallelism(kafkaSourceParallelism);
+        DataStream<String> adjRequestJsonStream = env.fromSource(adjRequestSource, WatermarkStrategy.noWatermarks(), "Kafka ADJ Request Source")
+                .setParallelism(kafkaSourceParallelism);
 
-        DataStream<String> retryJsonStream = env.fromSource(retrySource, WatermarkStrategy.noWatermarks(), "Kafka Retry Source");
+        DataStream<String> retryJsonStream = env.fromSource(retrySource, WatermarkStrategy.noWatermarks(), "Kafka Retry Source")
+                .setParallelism(kafkaSourceParallelism);
 
 
         KafkaSink<String> retrySink = createKafkaSink(params, ConfigKeys.KAFKA_TOPIC_RETRY);
@@ -61,28 +71,33 @@ public class InvoiceRequest {
         final int maxGroupIdValue = params.getInt(ConfigKeys.APP_GROUP_ID_MAX_VALUE, 4) + 1;
         final int maxRetries = params.getInt(ConfigKeys.APP_MAX_RETRIES, 3);
 
-        InvoiceProcessingRouter invoiceProcessor = new InvoiceProcessingRouter(maxGroupIdValue, maxRetries, retryOutputTag, dlqOutputTag);
+        InvoiceRequestRouter invoiceProcessor = new InvoiceRequestRouter(maxGroupIdValue, maxRetries, retryOutputTag, dlqOutputTag);
 
-        // Process primary topic stream
+        // Process primary topic stream with explicit parallelism
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedCrtRequest = crtRequestJsonStream
                 .process(invoiceProcessor)
-                .name("ProcessCrtRequestInvoices");
+                .name("ProcessCrtRequestInvoices")
+                .setParallelism(processorParallelism);
 
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedUpdRequest = updRequestJsonStream
                 .process(invoiceProcessor)
-                .name("ProcessUpdRequestInvoices");
+                .name("ProcessUpdRequestInvoices")
+                .setParallelism(processorParallelism);
 
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedDelRequest = delRequestJsonStream
                 .process(invoiceProcessor)
-                .name("ProcessDelRequestInvoices");
+                .name("ProcessDelRequestInvoices")
+                .setParallelism(processorParallelism);
 
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedRepRequest = repRequestJsonStream
                 .process(invoiceProcessor)
-                .name("ProcessRepRequestInvoices");
+                .name("ProcessRepRequestInvoices")
+                .setParallelism(processorParallelism);
 
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedAdjRequest = adjRequestJsonStream
                 .process(invoiceProcessor)
-                .name("ProcessAdjRequestInvoices");
+                .name("ProcessAdjRequestInvoices")
+                .setParallelism(processorParallelism);
         
         // Union all retry side outputs from primary processing and sink them
         DataStream<String> allPrimaryRetryOutputs = processedCrtRequest.getSideOutput(retryOutputTag)
@@ -91,15 +106,22 @@ public class InvoiceRequest {
                 .union(processedRepRequest.getSideOutput(retryOutputTag))
                 .union(processedAdjRequest.getSideOutput(retryOutputTag));
         
-        allPrimaryRetryOutputs.sinkTo(retrySink).name("SinkAllPrimaryToRetry");
+        allPrimaryRetryOutputs.sinkTo(retrySink)
+                .name("SinkAllPrimaryToRetry")
+                .setParallelism(retrySinkParallelism);
 
         // Process retry topic stream
         SingleOutputStreamOperator<InvoiceMysqlRecord> processedRetry = retryJsonStream
                 .process(invoiceProcessor)
-                .name("ProcessRetryInvoices");
+                .name("ProcessRetryInvoices")
+                .setParallelism(processorParallelism);
                 
-        processedRetry.getSideOutput(retryOutputTag).sinkTo(retrySink).name("SinkToRetry");
-        processedRetry.getSideOutput(dlqOutputTag).sinkTo(dlqSink).name("SinkToDLQ");
+        processedRetry.getSideOutput(retryOutputTag).sinkTo(retrySink)
+                .name("SinkToRetry")
+                .setParallelism(retrySinkParallelism);
+        processedRetry.getSideOutput(dlqOutputTag).sinkTo(dlqSink)
+                .name("SinkToDLQ")
+                .setParallelism(dlqSinkParallelism);
 
         DataStream<String> allPrimaryDlqOutputs = processedCrtRequest.getSideOutput(dlqOutputTag)
                 .union(processedUpdRequest.getSideOutput(dlqOutputTag))
@@ -108,7 +130,8 @@ public class InvoiceRequest {
                 .union(processedAdjRequest.getSideOutput(dlqOutputTag));
 
         allPrimaryDlqOutputs.sinkTo(dlqSink)
-                .name("SinkAllPrimaryToDLQ");
+                .name("SinkAllPrimaryToDLQ")
+                .setParallelism(dlqSinkParallelism);
 
         DataStream<InvoiceMysqlRecord> allSuccessfulRecords = processedCrtRequest
                 .union(processedUpdRequest)

@@ -11,18 +11,18 @@ import org.apache.flink.util.OutputTag;
 import org.apache.flink.configuration.Configuration;
 import java.util.List;
 
-public class InvoiceProcessingRouter extends ProcessFunction<String, InvoiceMysqlRecord> {
+public class InvoiceRequestRouter extends ProcessFunction<String, InvoiceMysqlRecord> {
     private final int maxGroupIdValue;
     private final int maxRetriesConfig;
 
     private final OutputTag<String> retryOutput;
     private final OutputTag<String> dlqOutput;
 
-    private transient InvoiceTransformer transformer;
+    private transient InvoiceRequestTransformer transformer;
     private transient ObjectMapper objectMapper;
 
-    public InvoiceProcessingRouter(int maxGroupIdValue, int maxRetriesConfig,
-                                   OutputTag<String> retryOutput, OutputTag<String> dlqOutput) {
+    public InvoiceRequestRouter(int maxGroupIdValue, int maxRetriesConfig,
+                                OutputTag<String> retryOutput, OutputTag<String> dlqOutput) {
         this.maxGroupIdValue = maxGroupIdValue;
         this.maxRetriesConfig = maxRetriesConfig;
         this.retryOutput = retryOutput;
@@ -32,7 +32,7 @@ public class InvoiceProcessingRouter extends ProcessFunction<String, InvoiceMysq
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        transformer = new InvoiceTransformer(maxGroupIdValue);
+        transformer = new InvoiceRequestTransformer(maxGroupIdValue);
         objectMapper = new ObjectMapper();
     }
 

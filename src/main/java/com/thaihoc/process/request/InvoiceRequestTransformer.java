@@ -33,10 +33,29 @@ public class InvoiceRequestTransformer {
                     if (hasInvNode) {
                         invNode = singleInvoiceJson.get("inv");
                         record.tax_schema = invNode.get("stax").asText();
-                        record.sid = invNode.get("sid").asText();
                     } else {
                         record.tax_schema = singleInvoiceJson.get("stax").asText();
+                    }
+
+
+                    if (singleInvoiceJson.has("sid")) {
                         record.sid = singleInvoiceJson.get("sid").asText();
+                    }else {
+                        record.sid = invNode.get("sid").asText();
+                    }
+
+                    if(record.sid == null) {
+                        throw new Exception("sid is null");
+                    }
+
+                    if (singleInvoiceJson.has("syncid")) {
+                        record.syncid = singleInvoiceJson.get("syncid").asText();
+                    }else {
+                        record.syncid = invNode.get("syncid").asText();
+                    }
+
+                    if(record.syncid == null) {
+                        record.syncid = UUID.randomUUID().toString();
                     }
 
                     record.inv = objectMapper.writeValueAsString(singleInvoiceJson);
@@ -52,9 +71,6 @@ public class InvoiceRequestTransformer {
                     record.callback_res_msg = null;
                     record.callback_res_json = null;
                     record.process_kafka = null;
-
-                    record.syncid = UUID.randomUUID().toString();
-
                     records.add(record);
                 }
             }

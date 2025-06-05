@@ -1,7 +1,6 @@
 package com.thaihoc.config;
 
 public final class ConfigKeys {
-    static public final String CONFIG_FILE_PARAM = "config.file";
     static public final String DEFAULT_CONFIG_FILE_CLASSPATH = "application.properties";
 
     static public final String KAFKA_BOOTSTRAP_SERVERS = "kafka.bootstrap.servers";
@@ -16,8 +15,6 @@ public final class ConfigKeys {
     static public final String KAFKA_TOPIC_REP_RESPONSE = "kafka.topic.rep.response";
     static public final String KAFKA_TOPIC_ADJ_RESPONSE = "kafka.topic.adj.response";
 
-    static public final String KAFKA_TOPIC_RETRY = "kafka.topic.retry";
-    static public final String KAFKA_TOPIC_DLQ = "kafka.topic.dlq";
 
     static public final String KAFKA_GROUP_ID_CRT_REQUEST = "kafka.group.id.crt.request";
     static public final String KAFKA_GROUP_ID_UPD_REQUEST = "kafka.group.id.upd.request";
@@ -25,7 +22,6 @@ public final class ConfigKeys {
     static public final String KAFKA_GROUP_ID_REP_REQUEST = "kafka.group.id.rep.request";
     static public final String KAFKA_GROUP_ID_ADJ_REQUEST = "kafka.group.id.adj.request";
 
-    static public final String KAFKA_GROUP_ID_RETRY = "kafka.group.id.retry";
 
     static public final String KAFKA_SASL_USERNAME = "kafka.sasl.username";
     static public final String KAFKA_SASL_PASSWORD = "kafka.sasl.password";
@@ -47,8 +43,6 @@ public final class ConfigKeys {
     // Invoice Request Job Parallelism Configuration
     static public final String REQUEST_KAFKA_SOURCE_PARALLELISM = "request.kafka.source.parallelism";
     static public final String REQUEST_PROCESSOR_PARALLELISM = "request.processor.parallelism";
-    static public final String REQUEST_RETRY_SINK_PARALLELISM = "request.retry.sink.parallelism";
-    static public final String REQUEST_DLQ_SINK_PARALLELISM = "request.dlq.sink.parallelism";
     static public final String REQUEST_MYSQL_SINK_PARALLELISM = "request.mysql.sink.parallelism";
     
     // Invoice Response Job Parallelism Configuration
@@ -59,9 +53,15 @@ public final class ConfigKeys {
     
     static public final String APP_GROUP_ID_MAX_VALUE = "group.id.max.value";
     static public final String APP_MAX_RETRIES = "app.max.retries";
+    static public final String APP_RETRY_INTERVAL_MS = "app.retry.interval.ms";
 
     static public final String RESPONSE_BATCH_SIZE = "response.batch.size";
     static public final String RESPONSE_BATCH_TIMEOUT_MS = "response.batch.timeout.ms";
+
+    static public final String RETRY_MYSQL_POLLING_INTERVAL_MS = "retry.mysql.polling.interval.ms";
+    static public final String RETRY_MYSQL_FETCH_SIZE = "retry.mysql.fetch.size";
+    static public final String RETRY_MYSQL_SOURCE_PARALLELISM = "retry.mysql.source.parallelism";
+    static public final String RETRY_MYSQL_SINK_PARALLELISM = "retry.mysql.sink.parallelism";
 }
 
 

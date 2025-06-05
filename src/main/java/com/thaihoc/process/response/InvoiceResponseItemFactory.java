@@ -1,10 +1,10 @@
 package com.thaihoc.process.response;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.thaihoc.model.AsyncInvInRecord;
-import com.thaihoc.model.AsyncInvOutRecord;
-import com.thaihoc.model.InvoiceResponsePacket;
-import com.thaihoc.model.RecordInterface;
+import com.thaihoc.model.response.AsyncInvInRecord;
+import com.thaihoc.model.response.AsyncInvOutRecord;
+import com.thaihoc.model.response.InvoiceResponsePacket;
+import com.thaihoc.model.response.RecordInterface;
 
 public class InvoiceResponseItemFactory {
     private final ObjectMapper objectMapper;
@@ -35,7 +35,7 @@ public class InvoiceResponseItemFactory {
             item.message = record.fpt_einvoice_res_msg;
             item.status = "error";
         }
-        
+            
         item.res_resource = "fpt";
         item.code = null;
         
@@ -58,6 +58,8 @@ public class InvoiceResponseItemFactory {
         
         if (record.gdt_res != null) {
             item.data = objectMapper.readTree(record.gdt_res);
+        } else {
+            throw new Exception("gdt_res is null");
         }
         
         return item;

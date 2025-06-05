@@ -1,4 +1,4 @@
-package com.thaihoc.model;
+package com.thaihoc.model.response;
 
 import java.sql.Timestamp;
 

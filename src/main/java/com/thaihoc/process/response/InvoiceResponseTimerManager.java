@@ -2,7 +2,6 @@ package com.thaihoc.process.response;
 
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import com.thaihoc.model.RecordInterface;
 
 public class InvoiceResponseTimerManager {
     private final long batchTimeoutMs;
@@ -25,7 +24,7 @@ public class InvoiceResponseTimerManager {
         return timeSinceLastProcess >= maxWaitTimeMs;
     }
 
-    public void registerTimer(KeyedProcessFunction<Byte, RecordInterface, String>.Context ctx,
+    public void registerTimer(KeyedProcessFunction<Byte, Object, String>.Context ctx,
                              ValueState<Long> activeTimerTimestampState) throws Exception {
         // Clear existing timer first
         clearActiveTimer(ctx, activeTimerTimestampState);
@@ -41,7 +40,7 @@ public class InvoiceResponseTimerManager {
         }
     }
 
-    public void clearActiveTimer(KeyedProcessFunction<Byte, RecordInterface, String>.Context ctx,
+    public void clearActiveTimer(KeyedProcessFunction<Byte, Object, String>.Context ctx,
                                 ValueState<Long> activeTimerTimestampState) throws Exception {
         Long existingTimer = activeTimerTimestampState.value();
         if (existingTimer != null) {

@@ -1,8 +1,8 @@
 package com.thaihoc.process.response;
 
-import com.thaihoc.model.AsyncInvInRecord;
-import com.thaihoc.model.AsyncInvOutRecord;
-import com.thaihoc.model.RecordInterface;
+import com.thaihoc.model.response.AsyncInvInRecord;
+import com.thaihoc.model.response.AsyncInvOutRecord;
+import com.thaihoc.model.response.RecordInterface;
 
 public class InvoiceResponseRecordKeyGenerator {
     

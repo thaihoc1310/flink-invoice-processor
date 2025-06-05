@@ -1,8 +1,8 @@
 package com.thaihoc.process.response;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.thaihoc.model.InvoiceResponsePacket;
-import com.thaihoc.model.RecordInterface;
+import com.thaihoc.model.response.InvoiceResponsePacket;
+import com.thaihoc.model.response.RecordInterface;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.OutputTag;
 
@@ -26,7 +26,7 @@ public class InvoiceResponseKafkaRouter {
     }
 
     public void routeKafkaBatch(List<RecordInterface> records, 
-                               KeyedProcessFunction<Byte, RecordInterface, String>.Context ctx) throws Exception {
+                               KeyedProcessFunction<Byte, Object, String>.Context ctx) throws Exception {
         if (records.isEmpty()) return;
         
         // Get api_type from first record to determine routing
@@ -66,7 +66,7 @@ public class InvoiceResponseKafkaRouter {
                     ctx.output(ADJ_OUTPUT_TAG, jsonResponse);
                     break;
                 default:
-                    System.err.println("Unknown api_type: " + apiType + ". Skipping batch.");
+                    throw new Exception("Unknown api_type: " + apiType);
             }
         }
     }

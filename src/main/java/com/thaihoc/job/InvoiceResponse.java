@@ -1,14 +1,19 @@
 package com.thaihoc.job;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thaihoc.config.ConfigKeys;
-import com.thaihoc.model.AsyncInvInRecord;
-import com.thaihoc.model.AsyncInvOutRecord;
-import com.thaihoc.model.RecordInterface;
+import com.thaihoc.model.response.AsyncInvInRecord;
+import com.thaihoc.model.response.AsyncInvOutRecord;
+import com.thaihoc.model.response.RecordInterface;
+import com.thaihoc.model.retry.InvoiceRetryRecord;
 import com.thaihoc.process.response.InvoiceResponseBatchProcessor;
 import com.thaihoc.process.response.InvoiceResponseKafkaRouter;
+import com.thaihoc.sink.InvoiceRetrySink;
 import com.thaihoc.sink.TransactionalLogAndDeleteSink;
 import com.thaihoc.source.AsyncInvInSource;
 import com.thaihoc.source.AsyncInvOutSource;
+import com.thaihoc.source.InvoiceRetrySource;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
@@ -43,6 +48,13 @@ public class InvoiceResponse {
                 final int fetchSize = params.getInt(ConfigKeys.MYSQL_FETCH_SIZE, 1000);
                 final int sqlMaxRetries = params.getInt(ConfigKeys.MYSQL_MAX_RETRIES, 3);
 
+                // Retry configuration
+                final int maxRetries = params.getInt(ConfigKeys.APP_MAX_RETRIES, 3);
+                final long retryIntervalMs = params.getLong(ConfigKeys.APP_RETRY_INTERVAL_MS, 5000);
+                final long retryPollingIntervalMs = params.getLong(ConfigKeys.RETRY_MYSQL_POLLING_INTERVAL_MS, 10000);
+                final int retryFetchSize = params.getInt(ConfigKeys.RETRY_MYSQL_FETCH_SIZE, 100);
+                final int retrySourceParallelism = params.getInt(ConfigKeys.RETRY_MYSQL_SOURCE_PARALLELISM, defaultJobParallelism);
+                final int retrySinkParallelism = params.getInt(ConfigKeys.RETRY_MYSQL_SINK_PARALLELISM, defaultJobParallelism);
                 // Create data streams with explicit parallelism
                 DataStream<AsyncInvInRecord> invInStream = env.addSource(
                                 new AsyncInvInSource(jdbcUrl, dbUsername, dbPassword, pollingIntervalMs, fetchSize))
@@ -53,6 +65,12 @@ public class InvoiceResponse {
                                 new AsyncInvOutSource(jdbcUrl, dbUsername, dbPassword, pollingIntervalMs, fetchSize))
                                 .name("MySQL Source (async_inv_out)")
                                 .setParallelism(mysqlSourceParallelism);
+
+                // Create retry source for response job
+                DataStream<InvoiceRetryRecord> retryStream = env.addSource(
+                                new InvoiceRetrySource(jdbcUrl, dbUsername, dbPassword, "RESPONSE", retryPollingIntervalMs, retryFetchSize))
+                                .name("Response Retry Source")
+                                .setParallelism(retrySourceParallelism);
 
                 // Create Kafka sinks
                 KafkaSink<String> crtResponseSink = createKafkaSink(params, ConfigKeys.KAFKA_TOPIC_CRT_RESPONSE);
@@ -65,18 +83,37 @@ public class InvoiceResponse {
                 final int responseBatchSize = params.getInt(ConfigKeys.RESPONSE_BATCH_SIZE, 100);
                 final long responseBatchTimeoutMs = params.getLong(ConfigKeys.RESPONSE_BATCH_TIMEOUT_MS, 3000);
 
-                // Combine both streams for unified processing
+                // Combine streams for unified processing - convert all to Object type
                 DataStream<RecordInterface> InvInRecords = invInStream.map(record -> (RecordInterface) record);
                 DataStream<RecordInterface> InvOutRecords = invOutStream.map(record -> (RecordInterface) record);
                 DataStream<RecordInterface> allRecords = InvInRecords.union(InvOutRecords);
 
+                DataStream<Object> allStreams = allRecords.map(record -> (Object) record)
+                                .union(retryStream.map(record -> (Object) record));
+
                 InvoiceResponseBatchProcessor batchProcessor = new InvoiceResponseBatchProcessor(responseBatchSize,
-                                responseBatchTimeoutMs);
-                SingleOutputStreamOperator<String> processedBatches = allRecords
-                                .keyBy(new KeySelector<RecordInterface, Byte>() {
+                                responseBatchTimeoutMs, retryIntervalMs, maxRetries);
+                
+                SingleOutputStreamOperator<String> processedBatches = allStreams
+                                .keyBy(new KeySelector<Object, Byte>() {
                                         @Override
-                                        public Byte getKey(RecordInterface record) throws Exception {
-                                                return record.getApiType();
+                                        public Byte getKey(Object element) throws Exception {
+                                                if (element instanceof RecordInterface) {
+                                                        return ((RecordInterface) element).getApiType();
+                                                } else if (element instanceof InvoiceRetryRecord) {
+                                                        try {
+                                                                InvoiceRetryRecord retryRecord = (InvoiceRetryRecord) element;
+                                                                ObjectMapper mapper = new ObjectMapper();
+                                                                JsonNode node = mapper.readTree(retryRecord.payload);
+                                                                if (node.has("api_type")) {
+                                                                        return (byte) node.get("api_type").asInt();
+                                                                }
+                                                        } catch (Exception ignored) {
+                                                        }
+                                                        return (byte) 0; 
+                                                } else {
+                                                        return (byte) 0; 
+                                                }
                                         }
                                 })
                                 .process(batchProcessor)
@@ -105,6 +142,7 @@ public class InvoiceResponse {
                                 .name("Sink ADJ Batch Responses")
                                 .setParallelism(kafkaSinkParallelism);
 
+                // Database operations sink
                 TransactionalLogAndDeleteSink transactionalProcessor = new TransactionalLogAndDeleteSink(
                                 jdbcUrl, dbUsername, dbPassword, sqlMaxRetries);
 
@@ -112,6 +150,17 @@ public class InvoiceResponse {
                                 .addSink(transactionalProcessor)
                                 .name("Transactional Database Operations")
                                 .setParallelism(transactionalSinkParallelism);
+
+                // Retry handling - collect all retry operations and send to retry sink
+                DataStream<InvoiceRetryRecord> allRetryRecords = processedBatches.getSideOutput(InvoiceResponseBatchProcessor.CREATE_RETRY_TAG)
+                                .union(processedBatches.getSideOutput(InvoiceResponseBatchProcessor.UPDATE_RETRY_TAG))
+                                .union(processedBatches.getSideOutput(InvoiceResponseBatchProcessor.DELETE_RETRY_TAG))
+                                .union(processedBatches.getSideOutput(InvoiceResponseBatchProcessor.MAX_RETRY_TAG));
+
+                InvoiceRetrySink retrySink = new InvoiceRetrySink(jdbcUrl, dbUsername, dbPassword, sqlMaxRetries);
+                allRetryRecords.addSink(retrySink)
+                                .name("Response Retry Sink")
+                                .setParallelism(retrySinkParallelism);
 
                 env.execute("Invoice Response Job");
         }

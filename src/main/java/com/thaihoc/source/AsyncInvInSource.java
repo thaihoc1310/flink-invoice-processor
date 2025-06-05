@@ -1,6 +1,6 @@
 package com.thaihoc.source;
 
-import com.thaihoc.model.AsyncInvInRecord;
+import com.thaihoc.model.response.AsyncInvInRecord;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
 

@@ -1,4 +1,4 @@
-package com.thaihoc.model;
+package com.thaihoc.model.response;
 
 import com.fasterxml.jackson.databind.JsonNode;
 

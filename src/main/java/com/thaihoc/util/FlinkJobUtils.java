@@ -16,14 +16,13 @@ import java.util.Properties;
 public class FlinkJobUtils {
     public static ParameterTool loadParameters(String[] args) throws Exception {
         ParameterTool parameterToolFromArgs = ParameterTool.fromArgs(args);
-        if (parameterToolFromArgs.has(ConfigKeys.CONFIG_FILE_PARAM)) {
-            String configFilePath = parameterToolFromArgs.getRequired(ConfigKeys.CONFIG_FILE_PARAM);
-            return ParameterTool.fromPropertiesFile(configFilePath);
-        } else {
-            try (InputStream inputStream = InvoiceRequest.class.getClassLoader().getResourceAsStream(ConfigKeys.DEFAULT_CONFIG_FILE_CLASSPATH)) {
-                return ParameterTool.fromPropertiesFile(inputStream);
-            }
+        
+        ParameterTool parameterToolFromProperties;
+        try (InputStream inputStream = InvoiceRequest.class.getClassLoader().getResourceAsStream(ConfigKeys.DEFAULT_CONFIG_FILE_CLASSPATH)) {
+            parameterToolFromProperties = ParameterTool.fromPropertiesFile(inputStream);
         }
+
+        return parameterToolFromProperties.mergeWith(parameterToolFromArgs);
     }
 
     public static KafkaSource<String> createKafkaSource(ParameterTool params, String topicConfigKey, String groupIdConfigKey) {

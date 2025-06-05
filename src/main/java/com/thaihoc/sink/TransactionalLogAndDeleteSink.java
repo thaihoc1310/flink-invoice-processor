@@ -1,8 +1,8 @@
 package com.thaihoc.sink;
-import com.thaihoc.model.AsyncInvInRecord;
-import com.thaihoc.model.AsyncInvOutRecord;
-import com.thaihoc.model.AsyncInvSuccLogRecord;
-import com.thaihoc.model.RecordInterface;
+import com.thaihoc.model.response.AsyncInvInRecord;
+import com.thaihoc.model.response.AsyncInvOutRecord;
+import com.thaihoc.model.response.AsyncInvSuccLogRecord;
+import com.thaihoc.model.response.RecordInterface;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 
@@ -67,7 +67,7 @@ public class TransactionalLogAndDeleteSink  extends RichSinkFunction<List<Record
                 "tax_schema, api_type, res_type, fpt_einvoice_res_code, fpt_einvoice_res_msg, " +
                 "retry, group_id, created_date, updated_date, callback_res_code, callback_res_msg, " +
                 "sid, syncid, gdt_res" +
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)";
         
         String deleteInvInSql = "DELETE FROM async_inv_in WHERE id = ?";
         String deleteInvOutSql = "DELETE FROM async_inv_out WHERE id = ?";
@@ -122,13 +122,12 @@ public class TransactionalLogAndDeleteSink  extends RichSinkFunction<List<Record
         stmt.setString(5, record.fpt_einvoice_res_msg);
         stmt.setByte(6, record.retry);
         stmt.setByte(7, record.group_id);
-        stmt.setTimestamp(8, record.created_date);
-        stmt.setNull(9, Types.TIMESTAMP);
-        stmt.setString(10, record.callback_res_code);
-        stmt.setString(11, record.callback_res_msg);
-        stmt.setString(12, record.sid);
-        stmt.setString(13, record.syncid);
-        stmt.setString(14, record.gdt_res);
+        stmt.setNull(8, Types.TIMESTAMP);
+        stmt.setString(9, record.callback_res_code);
+        stmt.setString(10, record.callback_res_msg);
+        stmt.setString(11, record.sid);
+        stmt.setString(12, record.syncid);
+        stmt.setString(13, record.gdt_res);
     }
 
     

@@ -1,6 +1,4 @@
-package com.thaihoc.model;
-
-import java.sql.Timestamp;
+package com.thaihoc.model.response;
 
 public class AsyncInvInRecord implements RecordInterface {
     public int id;
